@@ -39,10 +39,156 @@ namespace MultiThreadProgram
             Console.WriteLine(number);
         }
 
+        static void TestCounter(CounterBase c)
+        {
+            for (int i = 0; i < 100_000; i++)
+            {
+                c.Increment();
+                c.Decrement();
+            }
+        }
+
+        static void LockTooMuch(object lock1, object lock2)
+        {
+            lock (lock1)
+            {
+                Thread.Sleep(1000);
+                lock (lock2)
+                {
+                    ;
+                }
+            }
+        }
+        static void BadFaultyThread()
+        {
+            Console.WriteLine("Starting a faulty thread...");
+            Thread.Sleep(TimeSpan.FromSeconds(2));
+            throw new Exception("Boom!");
+        }
+        static void FaultyThread()
+        {
+            try
+            {
+                Console.WriteLine("Starting a faulty thread...");
+                Thread.Sleep(TimeSpan.FromSeconds(1));
+                throw new Exception("Boom");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception handled: {ex.Message}");
+            }
+        }
         static void Main(string[] args)
         {
             {
-                
+                // 1.12 处理异常
+                var t = new Thread(FaultyThread);
+                t.Start();
+                t.Join();
+
+                try
+                {
+                    t = new Thread(BadFaultyThread);
+                    t.Start();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("We won't get here!");
+                }
+            }
+            return;
+            {
+                // 1.11 使用Minitor 类锁定资源
+                object lock1 = new object();
+                object lock2 = new object();
+
+                new Thread(() => LockTooMuch(lock1, lock2)).Start();
+
+                lock (lock2)
+                {
+                    Thread.Sleep(1000);
+                    Console.WriteLine("Monitor.TryEnter allows not to get stuck,returning false after a specified timeout is elapsed");
+                    if (Monitor.TryEnter(lock1, TimeSpan.FromSeconds(5)))
+                    {
+                        Console.WriteLine("Acquired a protected resource succesfully");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Timeout acquiring a resource");
+                    }
+                }
+
+                new Thread(() => LockTooMuch(lock1, lock2)).Start();
+
+                Console.WriteLine("--------------------------");
+                lock (lock2)
+                {
+                    Console.WriteLine("This will be a deadlock!");
+                    Thread.Sleep(1000);
+                    lock (lock1)
+                    {
+                        Console.WriteLine("Acquiring a protected resource succesfully");
+                    }
+                }
+            }
+            return;
+            {
+                // 1.10 使用c#中的lock关键字
+                Console.WriteLine("Incorrect counter");
+                var c = new Counter();
+                var t1 = new Thread(() => TestCounter(c));
+                var t2 = new Thread(() => TestCounter(c));
+                var t3 = new Thread(() => TestCounter(c));
+                t1.Start();
+                t2.Start();
+                t3.Start();
+                t1.Join();
+                t2.Join();
+                t3.Join();
+                Console.WriteLine($"Total count: {c.Count}");
+                Console.WriteLine("--------------------------");
+
+                Console.WriteLine("Correct counter");
+                var c1 = new CounterWithLock();
+
+                t1 = new Thread(() => TestCounter(c1));
+                t2 = new Thread(() => TestCounter(c1));
+                t3 = new Thread(() => TestCounter(c1));
+                t1.Start();
+                t2.Start();
+                t3.Start();
+                t1.Join();
+                t2.Join();
+                t3.Join();
+                Console.WriteLine($"Total count: {c1.Count}");
+                Console.WriteLine("--------------------------");
+            }
+            return;
+            {
+                //1.9 向线程传递参数
+                var sample = new ThreadSample2(10);
+                var threadOne = new Thread(sample.CountNumbers);
+                threadOne.Name = "ThreadOne";
+                threadOne.Start();
+                threadOne.Join();
+                Console.WriteLine("----------------------------");
+                var threadTwo = new Thread(Count);
+                threadTwo.Name = "ThreadTwo";
+                threadTwo.Start(8);
+                threadTwo.Join();
+                Console.WriteLine("----------------------------");
+                var threadThree = new Thread(() => CountNumbers(12));
+                threadThree.Name = "ThreadThree";
+                threadThree.Start();
+                threadThree.Join();
+                Console.WriteLine("----------------------------");
+
+                int i = 10;
+                var threadFour = new Thread(() => PrintNumber(i));
+                i = 20;
+                var threadFive = new Thread(() => PrintNumber(i));
+                threadFour.Start();
+                threadFive.Start();
             }
             return;
             {
